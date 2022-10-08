@@ -1,0 +1,45 @@
+---
+- name: install classroom
+  hosts: all
+  become: true
+  vars_prompt:
+    - name: "number"
+      prompt: "Enter the number of student"
+      private: no
+  vars:
+    myuser: student
+  tasks:
+    - name: update repo
+      apt:
+        update_cache: yes
+    - name: add package
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+    - name: Set google repository
+      shell: echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+    - name: install google package keys
+      shell: curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+    - name: Refresh repo and install gcloud packages
+      shell: apt-get update && sudo apt-get install google-cloud-cli
+    - name: create a group
+      group:
+        name: students
+        state: present
+    - name: create classroom users/students
+      user:
+        name:  "{{ myuser }}-{{ item }}"
+        shell: /bin/bash
+        password: "{{ 'lawn-vex' | password_hash('sha512') }}"
+        group : students
+        append: yes
+      with_sequence: start=1 end={{ number }}
+    - name: give sudo access to student users
+      blockinfile:
+        path: /etc/sudoers
+        insertafter: 'root    ALL=(ALL)       ALL'
+        block: |
+          # Gives sudo access to the devops group
+          %students   ALL=(ALL)       NOPASSWD: ALL
